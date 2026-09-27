@@ -3,14 +3,16 @@
 #moj_import <fog.glsl>
 
 uniform sampler2D Sampler0;
+
 uniform float FogStart;
 uniform float FogEnd;
 uniform vec4 FogColor;
+
 uniform float TransitionWeight;
 
-in vec4 vertexColor;
-in vec2 texCoord0;
 in float vertexDistance;
+in vec2 texCoord0;
+in vec4 vertexColor;
 
 out vec4 fragColor;
 
