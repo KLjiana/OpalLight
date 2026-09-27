@@ -3,15 +3,11 @@ package org.mesdag.opallight.impl;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import net.minecraft.advancements.critereon.StatePropertiesPredicate;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.data.CachedOutput;
 import net.minecraft.data.DataProvider;
 import net.minecraft.data.PackOutput;
-import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
 import org.jetbrains.annotations.Nullable;
-import org.mesdag.opallight.OpalLight;
 import org.mesdag.opallight.light.LightDataLoader;
 import org.mesdag.opallight.light.OpalColor;
 
@@ -34,18 +30,13 @@ public class OpalDataProvider implements DataProvider {
         this.modid = modid;
     }
 
-    public void gather() {
-        for (DyeColor color : OpalLight.COLORS) {
-            add(BuiltInRegistries.BLOCK.get(OpalLight.asResource(color.getName() + "_lantern")), color.getTextColor());
-        }
-        addCycle(Blocks.END_ROD);
-    }
+    public void gather() {}
 
     public void addCycle(Block block) {
         var pattern = new LightDataLoader.CyclePattern(
-            LightDataLoader.CyclePattern.DEFAULT_COLORS, 120, 2);
+                LightDataLoader.CyclePattern.DEFAULT_COLORS, 120, 2);
         map.computeIfAbsent(block, unused -> new ArrayList<>())
-            .add(LightDataLoader.OpalData.cycle(pattern, Optional.empty()));
+                .add(LightDataLoader.OpalData.cycle(pattern, Optional.empty()));
     }
 
     public void add(Block block, OpalColor color, @Nullable StatePropertiesPredicate predicate) {
