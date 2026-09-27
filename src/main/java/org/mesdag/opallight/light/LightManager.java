@@ -173,10 +173,8 @@ public final class LightManager {
 
         @SubscribeEvent
         public static void registerClientReloadListeners(RegisterClientReloadListenersEvent event) {
-            event.registerReloadListener((barrier, resources, preparationProfiler, reloadProfiler,
-                                          backgroundExecutor, gameExecutor) ->
-                    LightDataLoader.INSTANCE.reload(barrier, resources, preparationProfiler, reloadProfiler,
-                                    backgroundExecutor, gameExecutor)
+            event.registerReloadListener((barrier, resources, preparationProfiler, reloadProfiler, backgroundExecutor, gameExecutor) ->
+                    LightDataLoader.INSTANCE.reload(barrier, resources, preparationProfiler, reloadProfiler, backgroundExecutor, gameExecutor)
                             .thenRunAsync(LightManager::beginResourceReload, gameExecutor));
         }
     }
