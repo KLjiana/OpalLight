@@ -153,6 +153,7 @@ repositories {
 }
 
 dependencies {
+    compileOnly("maven.modrinth:KUUY100B:YlrFUdbl") // vulkan
     if (false) {
         localRuntime("maven.modrinth:Aqlf1Shp:7nHK7hMg") // fabric-api
         localRuntime("maven.modrinth:KUUY100B:YlrFUdbl") // vulkan
