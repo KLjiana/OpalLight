@@ -69,6 +69,21 @@ final class LightMaskRenderer {
         lightMaskShader.MODEL_VIEW_MATRIX.set(viewMatrix);
         /// 光影包合成阶段会改写全局投影矩阵，这里始终使用事件给出的快照。
         lightMaskShader.PROJECTION_MATRIX.set(projectionMatrix);
+        Uniform skyBrightness = lightMaskShader.getUniform("SkyBrightness");
+        Uniform ambientLight = lightMaskShader.getUniform("AmbientLight");
+        Uniform maskIntensity = lightMaskShader.getUniform("MaskIntensity");
+        Uniform edgeFadeStrength = lightMaskShader.getUniform("EdgeFadeStrength");
+        Uniform tintIntensity = lightMaskShader.getUniform("TintIntensity");
+        Uniform tintPass = lightMaskShader.getUniform("TintPass");
+        if (skyBrightness == null || ambientLight == null || maskIntensity == null || edgeFadeStrength == null
+                || tintIntensity == null || tintPass == null)
+            throw new IllegalStateException("Missing colored light sky brightness uniforms");
+        /// 昼夜、天气和闪电只更新 uniform，不重建彩光网格；洞穴通过顶点天空光保持照明。
+        skyBrightness.set(LightBrightness.skyBrightness(minecraft.level));
+        ambientLight.set(LightBrightness.ambientLight(minecraft.level));
+        maskIntensity.set(LightBrightness.MASK_INTENSITY);
+        edgeFadeStrength.set(LightFalloff.EDGE_FADE_STRENGTH);
+        tintIntensity.set(LightBrightness.TINT_INTENSITY);
         lightMaskShader.apply();
         /// 光影包启用时 Iris 刚在 apply() 末尾锁死深度与颜色写入，先抢回来再摆遮罩自己的状态。
         boolean reclaimedState = LightShaderCompatibility.reclaimDepthColorState();
@@ -101,8 +116,15 @@ final class LightMaskRenderer {
             GlStateManager._depthMask(false);
             GlStateManager._depthFunc(GL11.GL_EQUAL);
             GlStateManager._enableBlend();
-            /// 增量来自模型纹理，避免把已雾化的目标颜色再次增亮。
-            GlStateManager._blendFunc(GL11.GL_ONE, GL11.GL_ONE);
+            /// 先过滤原版白光中的多余通道，显色不依赖额外增亮，蓝灯不会只留下白光。
+            tintPass.set(1);
+            tintPass.upload();
+            GlStateManager._blendFuncSeparate(GL11.GL_DST_COLOR, GL11.GL_ZERO, GL11.GL_ZERO, GL11.GL_ONE);
+            drawVisibleBuffers(groupOffset, transitionWeight, visibleGroups.size(), true);
+            /// 再以原有 0.3 上限补充照明，模型 AO/植被染色只在这一步参与。
+            tintPass.set(0);
+            tintPass.upload();
+            GlStateManager._blendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE);
             drawVisibleBuffers(groupOffset, transitionWeight, visibleGroups.size(), true);
         } finally {
             GlStateManager._colorMask(true, true, true, true);

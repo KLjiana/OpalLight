@@ -1,6 +1,5 @@
 package org.mesdag.opallight.light;
 
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -31,7 +30,7 @@ public final class LightManager {
         event.registerShader(new ShaderInstance(
                 event.getResourceProvider(),
                 OpalLight.asResource("light_mask"),
-                DefaultVertexFormat.POSITION_TEX_COLOR
+                LightMaskMeshBuilder.VERTEX_FORMAT
         ), shader -> lightMaskShader = shader);
     }
 
@@ -71,6 +70,8 @@ public final class LightManager {
         ClientLevel level = Minecraft.getInstance().level;
         if (level == null) return;
         updateShaderPackMode();
+        /// 先发布已完成的快照，再采集本刻的移动，减少动态光一刻的延迟。
+        updateLighting(level);
         DynamicLightSources.update(level);
         LightPropagator.scheduleCyclingSources(level);
         updateLighting(level);

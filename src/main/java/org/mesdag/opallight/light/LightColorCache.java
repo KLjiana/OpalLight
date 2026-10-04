@@ -4,6 +4,8 @@ import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.BlockGetter;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.function.LongConsumer;
@@ -13,6 +15,8 @@ public final class LightColorCache {
 
     /// 每个通道用十六位存储；已提交分段只整体替换，网格工作线程可安全持有旧分段。
     private final Long2ObjectOpenHashMap<Long2LongOpenHashMap> sections = new Long2ObjectOpenHashMap<>();
+    private final LightColorSampler sampler = new LightColorSampler(this::colorAt, false);
+    private final float[] sampled = new float[3];
 
     private LightColorCache() {}
 
@@ -60,34 +64,12 @@ public final class LightColorCache {
 
     /// 方块实体顶点与普通方块遮罩使用相同的八点插值位置。
     public long sample(double x, double y, double z) {
-        double gx = x - 0.5, gy = y - 0.5, gz = z - 0.5;
-        int bx = (int) Math.floor(gx), by = (int) Math.floor(gy), bz = (int) Math.floor(gz);
-        float fx = (float) (gx - bx), fy = (float) (gy - by), fz = (float) (gz - bz);
-        /// 八个插值点通常位于同一分段，可复用一次哈希查询。
-        boolean sameSection = (bx & 15) != 15 && (by & 15) != 15 && (bz & 15) != 15;
-        Long2LongOpenHashMap local = sameSection
-            ? sections.get(SectionPos.asLong(bx >> 4, by >> 4, bz >> 4)) : null;
-        if (sameSection && local == null) return 0;
-        float red = 0, green = 0, blue = 0;
-        for (int dx = 0; dx <= 1; dx++) {
-            float wx = dx == 0 ? 1 - fx : fx;
-            if (wx == 0) continue;
-            for (int dy = 0; dy <= 1; dy++) {
-                float wy = dy == 0 ? 1 - fy : fy;
-                if (wy == 0) continue;
-                for (int dz = 0; dz <= 1; dz++) {
-                    float wz = dz == 0 ? 1 - fz : fz;
-                    if (wz == 0) continue;
-                    float weight = wx * wy * wz;
-                    long color = sameSection ? local.get(BlockPos.asLong(bx + dx, by + dy, bz + dz))
-                        : colorAt(bx + dx, by + dy, bz + dz);
-                    red += channel(color, 32) * weight;
-                    green += channel(color, 16) * weight;
-                    blue += channel(color, 0) * weight;
-                }
-            }
-        }
-        return pack(red, green, blue);
+        return sample(Minecraft.getInstance().level, x, y, z);
+    }
+
+    long sample(@Nullable BlockGetter view, double x, double y, double z) {
+        sampler.sample(view, x, y, z, (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z), sampled);
+        return pack(sampled[0], sampled[1], sampled[2]);
     }
 
     private static long maxChannels(long a, long b) {
@@ -100,9 +82,12 @@ public final class LightColorCache {
         float peak = Math.max(red, Math.max(green, blue));
         if (peak <= 0.0F) return 0;
         /// 低亮度保持线性；高亮度留出余量，让光源重叠时渐亮且不截断色相。
-        float mapped = peak <= 0.9F ? peak : 0.9F + 0.1F * (peak - 0.9F) / (peak - 0.8F);
-        float scale = mapped / peak;
+        float scale = mappedStrength(peak) / peak;
         return pack(red * scale, green * scale, blue * scale);
+    }
+
+    static float mappedStrength(float peak) {
+        return peak <= 0.9F ? peak : 0.9F + 0.1F * (peak - 0.9F) / (peak - 0.8F);
     }
 
     record SectionUpdate(long key, @Nullable Long2LongOpenHashMap colors,
@@ -139,7 +124,7 @@ public final class LightColorCache {
         else sections.put(update.key(), update.colors());
     }
 
-    private static long pack(float red, float green, float blue) {
+    static long pack(float red, float green, float blue) {
         return (long) (Math.min(1.0F, red) * 65535.0F + 0.5F) << 32
                 | (long) (Math.min(1.0F, green) * 65535.0F + 0.5F) << 16
                 | (long) (Math.min(1.0F, blue) * 65535.0F + 0.5F);
