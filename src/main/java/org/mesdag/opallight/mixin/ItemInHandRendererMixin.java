@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 
 @Mixin(ItemInHandRenderer.class)
 public abstract class ItemInHandRendererMixin {
-    @ModifyVariable(method = "renderArmWithItem", at = @At("HEAD"), argsOnly = true, index = 9)
+    @ModifyVariable(method = "renderArmWithItem", at = @At("HEAD"), argsOnly = true)
     private MultiBufferSource colorFirstPersonHand(MultiBufferSource source) {
         return FirstPersonLight.color(source);
     }
