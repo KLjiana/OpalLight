@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 /// 1.20.1 使用 {@code ForgeHooksClient} 代替 NeoForge 的 {@code ClientHooks}。
 @Mixin(value = ForgeHooksClient.class, remap = false)
 public abstract class ForgeHooksClientMixin {
-    @ModifyArg(method = "renderSpecificFirstPersonHand", at = @At(value = "INVOKE", target = "Lnet/minecraftforge/client/event/RenderHandEvent;<init>(Lnet/minecraft/world/InteractionHand;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;IFFFFLnet/minecraft/world/item/ItemStack;)V"), index = 2)
+    @ModifyArg(method = "renderSpecificFirstPersonHand", at = @At(value = "INVOKE", target = "Lnet/minecraftforge/client/event/RenderHandEvent;<init>(Lnet/minecraft/world/InteractionHand;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;IFFFFLnet/minecraft/world/item/ItemStack;)V"))
     private static MultiBufferSource colorCustomFirstPersonHand(MultiBufferSource source) {
         return FirstPersonLight.color(source);
     }
