@@ -15,6 +15,7 @@ import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.event.level.ChunkEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
+import org.jetbrains.annotations.Nullable;
 import org.mesdag.opallight.OpalLight;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public final class LightManager {
     }
 
     private static boolean reloadInProgress;
-    private static Boolean previousShaderPackMode;
+    private static @Nullable Boolean previousShaderPackMode;
 
     public static boolean isReloadInProgress() {
         return reloadInProgress;
