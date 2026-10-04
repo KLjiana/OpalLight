@@ -25,13 +25,11 @@ import java.util.function.Supplier;
 public final class LightManager {
     static ShaderInstance lightMaskShader;
 
-    @SuppressWarnings("deprecation")
     @SubscribeEvent
     public static void registerShaders(RegisterShadersEvent event) throws IOException {
         event.registerShader(new ShaderInstance(
                 event.getResourceProvider(),
-                /// VulkanMod 需要字符串形式的着色器名称。
-                "opallight:light_mask",
+                OpalLight.asResource("light_mask"),
                 DefaultVertexFormat.POSITION_TEX_COLOR
         ), shader -> lightMaskShader = shader);
     }

@@ -4,8 +4,6 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.fml.loading.LoadingModList;
-import net.vulkanmod.interfaces.ExtendedVertexBuilder;
 import org.jetbrains.annotations.Nullable;
 
 /// 在实体原有顶点流中加入彩光，保留其纹理、深度和渲染层。
@@ -28,11 +26,11 @@ public final class ColoredLightBufferSource implements MultiBufferSource {
 
     @Override
     public VertexConsumer getBuffer(RenderType renderType) {
-        return choose(delegate.getBuffer(renderType), cameraPos, fixedColor);
+        return new ColoredVertexConsumer(delegate.getBuffer(renderType), cameraPos, fixedColor);
     }
 
     public static VertexConsumer wrapFixed(VertexConsumer output, long color) {
-        return hasTint(color) ? choose(output, null, color) : output;
+        return hasTint(color) ? new ColoredVertexConsumer(output, null, color) : output;
     }
 
     public static boolean hasTint(long color) {
@@ -42,36 +40,7 @@ public final class ColoredLightBufferSource implements MultiBufferSource {
         return red != green || green != blue;
     }
 
-    private static final boolean VULKAN = LoadingModList.get().getModFileById("vulkanmod") != null;
-
-    private static VertexConsumer choose(VertexConsumer output, @Nullable Vec3 cameraPos, long fixedColor) {
-        if (VULKAN) {
-            return VulkanHolder.create(output, cameraPos, fixedColor);
-        }
-        return new ColoredVertexConsumer(output, cameraPos, fixedColor);
-    }
-
-    private static final class VulkanHolder {
-        private static VertexConsumer create(VertexConsumer output, @Nullable Vec3 cameraPos, long fixedColor) {
-            return new VulkanImpl(output, cameraPos, fixedColor);
-        }
-    }
-
-    private static final class VulkanImpl extends ColoredVertexConsumer implements ExtendedVertexBuilder {
-        private VulkanImpl(VertexConsumer output, @Nullable Vec3 cameraPos, long fixedColor) {
-            super(output, cameraPos, fixedColor);
-        }
-
-        @Override
-        public void vertex(float x, float y, float z, int packedColor, float u, float v, int overlay, int light, int packedNormal) {
-            float nx = (packedNormal >> 16 & 0xFF) / 127F;
-            float ny = (packedNormal >> 8 & 0xFF) / 127F;
-            float nz = (packedNormal & 0xFF) / 127F;
-            addVertex(x, y, z, packedColor, u, v, overlay, light, nx, ny, nz);
-        }
-    }
-
-    private static class ColoredVertexConsumer implements VertexConsumer {
+    private static final class ColoredVertexConsumer implements VertexConsumer {
         private final VertexConsumer output;
         private final @Nullable Vec3 cameraPos;
         private float red = 1.0F, green = 1.0F, blue = 1.0F;

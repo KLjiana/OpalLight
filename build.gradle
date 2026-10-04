@@ -153,16 +153,6 @@ repositories {
 }
 
 dependencies {
-    compileOnly("maven.modrinth:KUUY100B:YlrFUdbl") // vulkan
-    if (false) {
-        localRuntime("maven.modrinth:Aqlf1Shp:7nHK7hMg") // fabric-api
-        localRuntime("maven.modrinth:KUUY100B:YlrFUdbl") // vulkan
-
-        // LWJGL Vulkan bindings — Minecraft ships LWJGL but not these modules, which VulkanMod needs
-        additionalRuntimeClasspath "org.lwjgl:lwjgl-vulkan:3.3.3"
-        additionalRuntimeClasspath "org.lwjgl:lwjgl-vma:3.3.3"
-        additionalRuntimeClasspath "org.lwjgl:lwjgl-shaderc:3.3.3"
-    }
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
