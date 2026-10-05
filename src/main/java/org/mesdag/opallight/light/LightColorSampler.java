@@ -69,9 +69,7 @@ final class LightColorSampler {
         }
         for (int i = 0; i < 8; i++) {
             if ((reachable & colored & 1 << i) == 0) continue;
-            result[0] += LightColorCache.channel(samples[i], 32) * weights[i];
-            result[1] += LightColorCache.channel(samples[i], 16) * weights[i];
-            result[2] += LightColorCache.channel(samples[i], 0) * weights[i];
+            LightColorData.addWeighted(samples[i], weights[i], result);
         }
     }
 

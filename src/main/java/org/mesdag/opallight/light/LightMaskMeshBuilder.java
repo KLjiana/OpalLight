@@ -38,13 +38,7 @@ import static org.mesdag.opallight.light.LightMeshLayout.*;
 /// 负责生成不可变区块快照，并在工作线程中构建彩光网格。
 final class LightMaskMeshBuilder {
     private static final int VERTEX_FLOATS = 12;
-    static final VertexFormat VERTEX_FORMAT = VertexFormat.builder()
-            .add("Position", VertexFormatElement.POSITION)
-            .add("UV0", VertexFormatElement.UV0)
-            .add("UV1", VertexFormatElement.UV1)
-            .add("UV2", VertexFormatElement.UV2)
-            .add("Color", VertexFormatElement.COLOR)
-            .build();
+    static final VertexFormat VERTEX_FORMAT = LightMaskVertex.FORMAT;
     private static final int OUTPUT_VERTEX_BYTES = VERTEX_FORMAT.getVertexSize();
     private static final int QUAD_FLOATS = VERTEX_FLOATS * 4;
     private static final byte[] EMPTY_VERTICES = new byte[0];
@@ -199,7 +193,7 @@ final class LightMaskMeshBuilder {
                     }
                     blockGeometry = consumer.vertices();
                 }
-                byte[] vertices = colorize(blockGeometry, colors, region, sampled, output, encoded, packed, minX, minY, minZ);
+                byte[] vertices = encodeLightData(blockGeometry, colors, region, sampled, output, encoded, packed, minX, minY, minZ);
                 if (vertices.length != 0) {
                     vertexCount += appendVertices(memory, vertices);
                     geometry.put(packed, new BlockMesh(blockGeometry, vertices));
@@ -248,7 +242,7 @@ final class LightMaskMeshBuilder {
         return candidates;
     }
 
-    private static byte[] colorize(float[] vertices, LightMeshColorGrid colors,
+    private static byte[] encodeLightData(float[] vertices, LightMeshColorGrid colors,
                                    BlockGetter view,
                                    float[] sampled, float[] output, EncodingScratch scratch,
                                    long packed, int originX, int originY, int originZ) {
@@ -266,31 +260,21 @@ final class LightMaskMeshBuilder {
                         blockX + (int) Math.signum(vertices[source + 7]),
                         blockY + (int) Math.signum(vertices[source + 8]),
                         blockZ + (int) Math.signum(vertices[source + 9]), sampled);
-                float strength = Math.max(sampled[0], Math.max(sampled[1], sampled[2]));
-                /// 光源色与模型 AO/染色独立传给着色器，不能把亮度上限同时当成显色强度。
-                output[target] = strength > 0 ? sampled[0] / strength : 0;
-                output[target + 1] = strength > 0 ? sampled[1] / strength : 0;
-                output[target + 2] = strength > 0 ? sampled[2] / strength : 0;
-                output[target + 3] = strength * vertices[source + 6];
-                lit |= output[target + 3] > 0;
+                /// 仅复制原始贡献，色相、强度、限亮和透明度全部交给 GLSL。
+                output[target] = sampled[0];
+                output[target + 1] = sampled[1];
+                output[target + 2] = sampled[2];
+                lit |= vertices[source + 6] > 0 && (sampled[0] > 0 || sampled[1] > 0 || sampled[2] > 0);
             }
             if (!lit) continue;
             for (int vertex = 0; vertex < 4; vertex++) {
                 int source = quad + vertex * VERTEX_FLOATS;
                 int target = vertex * 4;
-                encoded.putFloat(blockX - originX + vertices[source]);
-                encoded.putFloat(blockY - originY + vertices[source + 1]);
-                encoded.putFloat(blockZ - originZ + vertices[source + 2]);
-                encoded.putFloat(vertices[source + 3]);
-                encoded.putFloat(vertices[source + 4]);
-                int baseColor = (int) vertices[source + 5];
-                encoded.putShort((short) (baseColor >>> 8));
-                encoded.putShort((short) (Math.round(vertices[source + 6] * 255) << 8 | baseColor & 255));
-                encoded.putShort((short) vertices[source + 11]);
-                encoded.putShort((short) vertices[source + 10]);
-                for (int channel = 0; channel < 4; channel++) {
-                    encoded.put((byte) (int) (output[target + channel] * 255.0F));
-                }
+                LightMaskVertex.write(encoded, blockX - originX + vertices[source],
+                        blockY - originY + vertices[source + 1], blockZ - originZ + vertices[source + 2],
+                        vertices[source + 3], vertices[source + 4], (int) vertices[source + 5], vertices[source + 6],
+                        (int) vertices[source + 11], (int) vertices[source + 10],
+                        output[target], output[target + 1], output[target + 2]);
             }
         }
         return encoded.position() == 0 ? EMPTY_VERTICES

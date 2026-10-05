@@ -1,6 +1,6 @@
 package org.mesdag.opallight.light;
 
-/// 按原版遮罩使用的 RGB 系数累加到达强度，全部光源叠加后才统一限制亮度。
+/// 按原版 RGB 系数累加到达强度，仅输出数据；地形显示转换由 GLSL 负责。
 final class LightColorMixer {
     private LightColorMixer() {}
 
@@ -10,13 +10,5 @@ final class LightColorMixer {
         double hue = channel / (double) sourcePeak;
         hue += (1 - hue) * white;
         return hue * strength;
-    }
-
-    static long finish(double red, double green, double blue) {
-        double peak = Math.max(red, Math.max(green, blue));
-        if (peak <= 0) return 0;
-        /// 原版 RGBA8 地形目标与遮罩直接乘 RGB；再次套 sRGB 曲线会抬高弱通道。
-        double scale = LightColorCache.mappedStrength((float) peak) / peak;
-        return LightColorCache.pack((float) (red * scale), (float) (green * scale), (float) (blue * scale));
     }
 }

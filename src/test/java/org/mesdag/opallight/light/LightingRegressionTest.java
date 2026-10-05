@@ -44,6 +44,7 @@ public final class LightingRegressionTest {
         vertexPathsAndBrightness();
         daylightAndMaskBrightness();
         coreAndEdgeFalloff();
+        hdrDataRoundTrips();
         multiSourceColorMixing();
         skyLightChangesRefreshGeometry();
         propagationAndOccludedSampling();
@@ -85,17 +86,17 @@ public final class LightingRegressionTest {
         check(LightBrightness.skyVisibility(240, 0.6F, 0) > LightBrightness.skyVisibility(240, 1, 0),
                 "overcast sky must permit more artificial illumination than clear daylight");
         check(LightBrightness.skyVisibility(0, 1, 0.1F) < 1, "dimension ambient light must also reduce additional brightness");
-        check(LightBrightness.colorVisibility(240, 1, 0, 1) == 0.25F,
+        check(DisplayReference.colorVisibility(240, 1, 0, 1) == 0.25F,
                 "daylight must retain a visible tint from saturated colored sources");
-        check(LightBrightness.colorVisibility(240, 1, 0, 0) == 0,
+        check(DisplayReference.colorVisibility(240, 1, 0, 0) == 0,
                 "white sources must not add daytime brightness");
-        check(LightBrightness.colorVisibility(0, 1, 0, 1) == 1,
+        check(DisplayReference.colorVisibility(0, 1, 0, 1) == 1,
                 "cave color visibility must retain the normal brightness cap");
-        check(LightBrightness.tintStrength(1, 240, 0, 1, 0, 1) == 1,
+        check(DisplayReference.tintStrength(1, 240, 0, 1, 0, 1) == 1,
                 "a sole colored source must fully replace vanilla white light");
-        check(Math.abs(LightBrightness.tintStrength(0.2F, 48, 0, 1, 0, 1) - 1) < 0.00001F,
+        check(Math.abs(DisplayReference.tintStrength(0.2F, 48, 0, 1, 0, 1) - 1) < 0.00001F,
                 "a distant sole colored source must retain its hue rather than fading into white light");
-        check(Math.abs(LightBrightness.tintStrength(0.2F, 240, 0, 1, 0, 1) - 0.2F) < 0.00001F,
+        check(Math.abs(DisplayReference.tintStrength(0.2F, 240, 0, 1, 0, 1) - 0.2F) < 0.00001F,
                 "unrelated stronger white light must retain its share of illumination");
         float previous = 1;
         for (int sky = 0; sky <= 240; sky++) {
@@ -133,7 +134,7 @@ public final class LightingRegressionTest {
         Class<?> scratchType = Class.forName("org.mesdag.opallight.light.LightMaskMeshBuilder$EncodingScratch");
         Constructor<?> scratchConstructor = scratchType.getDeclaredConstructor();
         scratchConstructor.setAccessible(true);
-        Method colorize = LightMaskMeshBuilder.class.getDeclaredMethod("colorize", float[].class,
+        Method colorize = LightMaskMeshBuilder.class.getDeclaredMethod("encodeLightData", float[].class,
                 LightMeshColorGrid.class, BlockGetter.class, float[].class, float[].class, scratchType,
                 long.class, int.class, int.class, int.class);
         colorize.setAccessible(true);
@@ -143,18 +144,19 @@ public final class LightingRegressionTest {
         check(encoded.length == 4 * format.getVertexSize(), "mask encoding must match its registered vertex format");
         var data = java.nio.ByteBuffer.wrap(encoded).order(java.nio.ByteOrder.nativeOrder());
         int uvOffset = format.getOffset(com.mojang.blaze3d.vertex.VertexFormatElement.UV2);
-        int modelOffset = format.getOffset(com.mojang.blaze3d.vertex.VertexFormatElement.UV1);
+        int lightOffset = format.getOffset(LightMaskVertex.LIGHT_COLOR);
         int colorOffset = format.getOffset(com.mojang.blaze3d.vertex.VertexFormatElement.COLOR);
         for (int i = 0; i < 4; i++) {
             int offset = i * format.getVertexSize();
             check(data.getShort(offset + uvOffset + 2) == i * 80, "mask vertices must retain per-vertex sky light");
             check(data.getShort(offset + uvOffset) == i * 48, "mask vertices must retain the original block-light coordinate");
-            check(data.getShort(offset + modelOffset) == -1 && data.getShort(offset + modelOffset + 2) == -1,
+            check(data.getInt(offset + colorOffset) == -1,
                     "model color and alpha must remain separate from the light hue");
-            check(Byte.toUnsignedInt(data.get(offset + colorOffset + 3)) / 255F * LightBrightness.MASK_INTENSITY <= 0.3F,
-                    "displayed mask brightness must retain its cap independently of encoded light strength");
+            check(data.getFloat(offset + lightOffset) == 1 && data.getFloat(offset + lightOffset + 4) == 0
+                            && data.getFloat(offset + lightOffset + 8) == 0,
+                    "mesh encoding must pass raw light contributions without normalization or tone mapping");
             check(Byte.toUnsignedInt(data.get(offset + colorOffset)) == 255,
-                    "sky coordinates must not overwrite the red tint channel");
+                    "sky coordinates must not overwrite the model tint channel");
         }
         // White light illuminating a tinted model must not become a falsely saturated light source.
         Method clear = type.getDeclaredMethod("clear");
@@ -171,13 +173,24 @@ public final class LightingRegressionTest {
         var whiteData = java.nio.ByteBuffer.wrap(neutral).order(java.nio.ByteOrder.nativeOrder());
         check(whiteData.getShort(uvOffset) == 0 && whiteData.getShort(uvOffset + 2) == 240,
                 "white light must retain the model's block and sky light coordinates");
-        check(Byte.toUnsignedInt(whiteData.get(colorOffset)) == 255
-                        && Byte.toUnsignedInt(whiteData.get(colorOffset + 1)) == 255
-                        && Byte.toUnsignedInt(whiteData.get(colorOffset + 2)) == 255,
+        check(whiteData.getFloat(lightOffset) == 1 && whiteData.getFloat(lightOffset + 4) == 1
+                        && whiteData.getFloat(lightOffset + 8) == 1,
                 "white light illuminating vegetation must retain a neutral light hue");
-        check((whiteData.getShort(modelOffset) & 65535) == 0x4080
-                        && (whiteData.getShort(modelOffset + 2) & 65535) == 0xFF40,
+        check(Byte.toUnsignedInt(whiteData.get(colorOffset)) == 64
+                        && Byte.toUnsignedInt(whiteData.get(colorOffset + 1)) == 128
+                        && Byte.toUnsignedInt(whiteData.get(colorOffset + 2)) == 64
+                        && Byte.toUnsignedInt(whiteData.get(colorOffset + 3)) == 255,
                 "vegetation tint must remain intact in the separate model attributes");
+        grid.reset(0);
+        grid.put(0, LightColorData.pack(4, 2, 1));
+        byte[] hdr = (byte[]) colorize.invoke(null, (float[]) vertices.invoke(geometry), grid,
+                new World(pos -> Blocks.AIR.defaultBlockState()), new float[3], new float[16],
+                scratchConstructor.newInstance(), 0L, 0, 0, 0);
+        var hdrData = java.nio.ByteBuffer.wrap(hdr).order(java.nio.ByteOrder.nativeOrder());
+        check(Math.abs(hdrData.getFloat(lightOffset) - 4) < 0.0001F
+                        && Math.abs(hdrData.getFloat(lightOffset + 4) - 2) < 0.0001F
+                        && Math.abs(hdrData.getFloat(lightOffset + 8) - 1) < 0.0001F,
+                "HDR contributions must reach GLSL intact instead of being clipped to byte-sized light colors");
     }
 
     private static void skyLightChangesRefreshGeometry() throws Exception {
@@ -236,7 +249,7 @@ public final class LightingRegressionTest {
             check(opacity >= previous && opacity <= 1, "edge opacity must be smooth, monotonic and bounded");
             previous = opacity;
         }
-        check(Math.abs(LightBrightness.tintStrength(0.1F, 16, 0, 1, 0, 1) - 0.5F) < 0.00001F,
+        check(Math.abs(DisplayReference.tintStrength(0.1F, 16, 0, 1, 0, 1) - 0.5F) < 0.00001F,
                 "edge tint must retain the half-transparent gradient even for a sole colored source");
         check(LightBrightness.entityLight(0.1F, 0, 1, 0) == 16,
                 "entity illumination must follow the same edge envelope");
@@ -260,6 +273,7 @@ public final class LightingRegressionTest {
         for (var direction : net.minecraft.core.Direction.values()) {
             for (int distance = 0; distance <= 14; distance++) {
                 long color = colors.get(origin.relative(direction, distance).asLong());
+                color = LightColorData.display(color);
                 float peak = LightColorCache.channel(color, 0);
                 float expectedPeak = LightColorCache.channel(LightColorCache.toneMapped(0, 0, (15 - distance) / 15F), 0);
                 check(Math.abs(peak - expectedPeak) < 0.00002F,
@@ -289,6 +303,25 @@ public final class LightingRegressionTest {
                 "the white core must follow the occluded propagation path rather than leak through walls");
     }
 
+    private static void hdrDataRoundTrips() {
+        check(LightColorData.pack(0, 0, 0) == 0, "unlit HDR data must keep the cache's empty sentinel");
+        for (double peak : new double[]{0.01, 0.9, 1, 1.0001, 2, 48, 65536}) {
+            long packed = LightColorData.pack(peak, peak / 2, peak / 8);
+            double tolerance = Math.max(1, peak * 2) / 65535;
+            check(Math.abs(LightColorData.channel(packed, 32) - peak) <= tolerance
+                            && Math.abs(LightColorData.channel(packed, 16) - peak / 2) <= tolerance
+                            && Math.abs(LightColorData.channel(packed, 0) - peak / 8) <= tolerance,
+                    "shared-exponent data must preserve dim, boundary and high-range light contributions");
+            long display = LightColorData.display(packed);
+            check(LightColorCache.channel(display, 32) <= 1 && LightColorCache.channel(display, 16) <= 1,
+                    "only the entity compatibility conversion should constrain HDR data to display range");
+        }
+        long combined = LightColorData.maximum(LightColorData.pack(4, 0, 1), LightColorData.pack(0, 2, 0));
+        check(Math.abs(LightColorData.channel(combined, 32) - 4) < 0.0001F
+                        && Math.abs(LightColorData.channel(combined, 16) - 2) < 0.0001F,
+                "neighbor maxima must compare decoded contributions with different shared exponents");
+    }
+
     private static void propagationAndOccludedSampling() throws Exception {
         LightColorCache.INSTANCE.clearAll();
         World air = new World(pos -> Blocks.AIR.defaultBlockState());
@@ -301,7 +334,7 @@ public final class LightingRegressionTest {
                 int distance = Math.abs(BlockPos.getX(entry.getLongKey())) + Math.abs(BlockPos.getY(entry.getLongKey()))
                         + Math.abs(BlockPos.getZ(entry.getLongKey()));
                 float expected = LightColorCache.channel(LightColorCache.toneMapped((15 - distance) / 15F, 0, 0), 32);
-                check(Math.abs(LightColorCache.channel(entry.getLongValue(), 32) - expected) < 0.00002F,
+                check(Math.abs(LightColorCache.channel(LightColorData.display(entry.getLongValue()), 32) - expected) < 0.00002F,
                         "air propagation must retain distance attenuation, including negative coordinates");
             }
         }
@@ -461,7 +494,9 @@ public final class LightingRegressionTest {
     private static Long2LongOpenHashMap propagatedColors(List<LightSource> sources, World world) throws Exception {
         var result = LightPropagationSolver.compute(snapshot(sources, targets()), world, key -> true, false);
         var colors = new Long2LongOpenHashMap();
-        for (var update : result.updates()) if (update.colors() != null) colors.putAll(update.colors());
+        for (var update : result.updates()) if (update.colors() != null)
+            for (var entry : update.colors().long2LongEntrySet())
+                colors.put(entry.getLongKey(), LightColorData.display(entry.getLongValue()));
         return colors;
     }
 
@@ -610,6 +645,21 @@ public final class LightingRegressionTest {
         Field field = type.getDeclaredField(name);
         field.setAccessible(true);
         return field.get(null);
+    }
+
+    /// 固定迁移前的显示策略，仅用于验证 GLSL，不进入产品 JAR。
+    static final class DisplayReference {
+        static float colorVisibility(int skyUv, float skyBrightness, float ambientLight, float saturation) {
+            float visibility = LightBrightness.skyVisibility(skyUv, skyBrightness, ambientLight);
+            return visibility + (1 - visibility) * 0.25F * Math.clamp(saturation, 0, 1);
+        }
+
+        static float tintStrength(float strength, int blockUv, int skyUv, float skyBrightness, float ambientLight, float saturation) {
+            float skyLight = 1 - LightBrightness.skyVisibility(skyUv, skyBrightness, ambientLight);
+            float existing = Math.max(1 / 15F, Math.max(Math.clamp(blockUv / 240F, 0, 1), skyLight));
+            return Math.clamp(strength / existing, 0, 1) * LightFalloff.edgeOpacity(strength)
+                    * colorVisibility(skyUv, skyBrightness, ambientLight, saturation);
+        }
     }
 
     private static void check(boolean condition, String message) {

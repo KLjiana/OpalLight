@@ -10,9 +10,7 @@
         { "name": "GroupOffset", "type": "float", "count": 3, "values": [ 0.0, 0.0, 0.0 ] },
         { "name": "SkyBrightness", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "AmbientLight", "type": "float", "count": 1, "values": [ 0.0 ] },
-        { "name": "MaskIntensity", "type": "float", "count": 1, "values": [ 0.3 ] },
-        { "name": "EdgeFadeStrength", "type": "float", "count": 1, "values": [ 0.2 ] },
-        { "name": "TintIntensity", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "LightSettings", "type": "float", "count": 4, "values": [ 0.3, 1.0, 0.25, 0.2 ] },
         { "name": "TintPass", "type": "int", "count": 1, "values": [ 0 ] },
         {
             "name": "TransitionWeight",

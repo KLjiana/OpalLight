@@ -13,7 +13,7 @@ import java.util.function.LongConsumer;
 public final class LightColorCache {
     public static final LightColorCache INSTANCE = new LightColorCache();
 
-    /// 每个通道用十六位存储；已提交分段只整体替换，网格工作线程可安全持有旧分段。
+    /// 分段保存未限亮的 HDR 系数，只整体替换，网格工作线程可安全持有旧分段。
     private final Long2ObjectOpenHashMap<Long2LongOpenHashMap> sections = new Long2ObjectOpenHashMap<>();
     private final LightColorSampler sampler = new LightColorSampler(this::colorAt, false);
     private final float[] sampled = new float[3];
@@ -49,12 +49,12 @@ public final class LightColorCache {
     /// 方块实体由独立渲染器绘制，采样自身与六个相邻位置的彩光。
     public long colorAtBlockEntity(BlockPos pos) {
         long color = colorAt(pos.getX(), pos.getY(), pos.getZ());
-        color = maxChannels(color, colorAt(pos.getX() + 1, pos.getY(), pos.getZ()));
-        color = maxChannels(color, colorAt(pos.getX() - 1, pos.getY(), pos.getZ()));
-        color = maxChannels(color, colorAt(pos.getX(), pos.getY() + 1, pos.getZ()));
-        color = maxChannels(color, colorAt(pos.getX(), pos.getY() - 1, pos.getZ()));
-        color = maxChannels(color, colorAt(pos.getX(), pos.getY(), pos.getZ() + 1));
-        return maxChannels(color, colorAt(pos.getX(), pos.getY(), pos.getZ() - 1));
+        color = LightColorData.maximum(color, colorAt(pos.getX() + 1, pos.getY(), pos.getZ()));
+        color = LightColorData.maximum(color, colorAt(pos.getX() - 1, pos.getY(), pos.getZ()));
+        color = LightColorData.maximum(color, colorAt(pos.getX(), pos.getY() + 1, pos.getZ()));
+        color = LightColorData.maximum(color, colorAt(pos.getX(), pos.getY() - 1, pos.getZ()));
+        color = LightColorData.maximum(color, colorAt(pos.getX(), pos.getY(), pos.getZ() + 1));
+        return LightColorData.display(LightColorData.maximum(color, colorAt(pos.getX(), pos.getY(), pos.getZ() - 1)));
     }
 
     private long colorAt(int x, int y, int z) {
@@ -69,25 +69,15 @@ public final class LightColorCache {
 
     long sample(@Nullable BlockGetter view, double x, double y, double z) {
         sampler.sample(view, x, y, z, (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z), sampled);
-        return pack(sampled[0], sampled[1], sampled[2]);
-    }
-
-    private static long maxChannels(long a, long b) {
-        return Math.max((a >>> 32) & 65535L, (b >>> 32) & 65535L) << 32
-                | Math.max((a >>> 16) & 65535L, (b >>> 16) & 65535L) << 16
-                | Math.max(a & 65535L, b & 65535L);
+        return toneMapped(sampled[0], sampled[1], sampled[2]);
     }
 
     static long toneMapped(float red, float green, float blue) {
         float peak = Math.max(red, Math.max(green, blue));
         if (peak <= 0.0F) return 0;
         /// 低亮度保持线性；高亮度留出余量，让光源重叠时渐亮且不截断色相。
-        float scale = mappedStrength(peak) / peak;
+        float scale = LightBrightness.mappedStrength(peak) / peak;
         return pack(red * scale, green * scale, blue * scale);
-    }
-
-    static float mappedStrength(float peak) {
-        return peak <= 0.9F ? peak : 0.9F + 0.1F * (peak - 0.9F) / (peak - 0.8F);
     }
 
     record SectionUpdate(long key, @Nullable Long2LongOpenHashMap colors,

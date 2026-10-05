@@ -5,7 +5,6 @@ import it.unimi.dsi.fastutil.longs.*;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.chunk.RenderRegionCache;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.core.BlockPos;
@@ -236,7 +235,7 @@ public final class LightMaskMeshCache {
         }
     }
 
-    public static void draw(Matrix4f viewMatrix, Matrix4f projectionMatrix, Camera camera, ShaderInstance shader,
+    public static void draw(Matrix4f viewMatrix, Matrix4f projectionMatrix, Camera camera, LightMaskShader shader,
                             boolean reloadInProgress, LongPredicate propagationPending) {
         Minecraft minecraft = Minecraft.getInstance();
         Frustum frustum = minecraft.levelRenderer.getFrustum();

@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 
 @EventBusSubscriber(modid = OpalLight.MODID, value = Dist.CLIENT)
 public final class LightManager {
-    static ShaderInstance lightMaskShader;
+    static LightMaskShader lightMaskShader;
 
     @SubscribeEvent
     public static void registerShaders(RegisterShadersEvent event) throws IOException {
@@ -31,7 +31,7 @@ public final class LightManager {
                 event.getResourceProvider(),
                 OpalLight.asResource("light_mask"),
                 LightMaskMeshBuilder.VERTEX_FORMAT
-        ), shader -> lightMaskShader = shader);
+        ), shader -> lightMaskShader = new LightMaskShader(shader));
     }
 
     @SubscribeEvent

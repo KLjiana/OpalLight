@@ -164,7 +164,7 @@ final class LightPropagationSolver {
             for (int i = section.occupied.nextSetBit(0); i >= 0; i = section.occupied.nextSetBit(i + 1)) {
                 int offset = i * 3;
                 values.put(BlockPos.asLong(sx + (i & 15), sy + (i >> 8), sz + (i >> 4 & 15)),
-                    LightColorMixer.finish(section.colors[offset], section.colors[offset + 1], section.colors[offset + 2]));
+                    LightColorData.pack(section.colors[offset], section.colors[offset + 1], section.colors[offset + 2]));
             }
             output.put(key, values);
         }

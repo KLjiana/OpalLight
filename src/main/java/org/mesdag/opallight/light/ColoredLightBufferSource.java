@@ -70,8 +70,7 @@ public final class ColoredLightBufferSource implements MultiBufferSource {
 
         @Override
         public VertexConsumer addVertex(float x, float y, float z) {
-            if (cameraPos != null)
-                updateColor(LightColorCache.INSTANCE.sample(cameraPos.x + x, cameraPos.y + y, cameraPos.z + z));
+            sampleAt(x, y, z);
             output.addVertex(x, y, z);
             return this;
         }
@@ -89,7 +88,7 @@ public final class ColoredLightBufferSource implements MultiBufferSource {
 
         @Override
         public VertexConsumer setColor(int r, int g, int b, int a) {
-            output.setColor(Math.round(r * red), Math.round(g * green), Math.round(b * blue), a);
+            output.setColor(tintedColor(FastColor.ARGB32.color(a, r, g, b)));
             return this;
         }
 
@@ -108,7 +107,7 @@ public final class ColoredLightBufferSource implements MultiBufferSource {
         @Override
         public VertexConsumer setUv2(int u, int v) {
             /// 限制彩光亮度并按天空光衰减，避免在原版天空光之上额外加亮。
-            output.setUv2(Math.max(u, LightBrightness.entityLight(strength, v, skyBrightness, ambientLight)), v);
+            output.setUv2(blockLight(u, v), v);
             return this;
         }
 
@@ -120,16 +119,26 @@ public final class ColoredLightBufferSource implements MultiBufferSource {
 
         @Override
         public void addVertex(float x, float y, float z, int color, float u, float v, int packedOverlay, int packedLight, float normalX, float normalY, float normalZ) {
+            sampleAt(x, y, z);
+            int sky = packedLight >>> 16;
+            int light = packedLight & 0xFFFF0000 | blockLight(packedLight & 0xFFFF, sky);
+            output.addVertex(x, y, z, tintedColor(color), u, v, packedOverlay, light, normalX, normalY, normalZ);
+        }
+
+        private void sampleAt(float x, float y, float z) {
             if (cameraPos != null)
                 updateColor(LightColorCache.INSTANCE.sample(cameraPos.x + x, cameraPos.y + y, cameraPos.z + z));
-            int tinted = FastColor.ARGB32.color(FastColor.ARGB32.alpha(color),
+        }
+
+        private int tintedColor(int color) {
+            return FastColor.ARGB32.color(FastColor.ARGB32.alpha(color),
                     Math.round(FastColor.ARGB32.red(color) * red),
                     Math.round(FastColor.ARGB32.green(color) * green),
                     Math.round(FastColor.ARGB32.blue(color) * blue));
-            int sky = packedLight >>> 16;
-            int light = packedLight & 0xFFFF0000 | Math.max(packedLight & 0xFFFF,
-                    LightBrightness.entityLight(strength, sky, skyBrightness, ambientLight));
-            output.addVertex(x, y, z, tinted, u, v, packedOverlay, light, normalX, normalY, normalZ);
+        }
+
+        private int blockLight(int existing, int sky) {
+            return Math.max(existing, LightBrightness.entityLight(strength, sky, skyBrightness, ambientLight));
         }
     }
 }
